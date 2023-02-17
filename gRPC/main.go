@@ -1,9 +1,9 @@
 package main
 
 import (
-	"log"
+	"bookshop/server"
 )
 
 func main() {
-	log.Println("Hello World")
+	server.NewServer()
 }
