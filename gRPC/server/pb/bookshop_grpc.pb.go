@@ -22,7 +22,13 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type InventoryClient interface {
+	// Simple RPC
 	GetBookList(ctx context.Context, in *GetBookListRequest, opts ...grpc.CallOption) (*GetBookListResponse, error)
+	// Server-side streaming RPC
+	GetBookFieldsStream(ctx context.Context, in *Book, opts ...grpc.CallOption) (Inventory_GetBookFieldsStreamClient, error)
+	// Client-side streaming rPC
+	CreateBookStream(ctx context.Context, opts ...grpc.CallOption) (Inventory_CreateBookStreamClient, error)
+	BiGetBooksToFields(ctx context.Context, opts ...grpc.CallOption) (Inventory_BiGetBooksToFieldsClient, error)
 }
 
 type inventoryClient struct {
@@ -42,11 +48,114 @@ func (c *inventoryClient) GetBookList(ctx context.Context, in *GetBookListReques
 	return out, nil
 }
 
+func (c *inventoryClient) GetBookFieldsStream(ctx context.Context, in *Book, opts ...grpc.CallOption) (Inventory_GetBookFieldsStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Inventory_ServiceDesc.Streams[0], "/Inventory/GetBookFieldsStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &inventoryGetBookFieldsStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Inventory_GetBookFieldsStreamClient interface {
+	Recv() (*BookField, error)
+	grpc.ClientStream
+}
+
+type inventoryGetBookFieldsStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *inventoryGetBookFieldsStreamClient) Recv() (*BookField, error) {
+	m := new(BookField)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *inventoryClient) CreateBookStream(ctx context.Context, opts ...grpc.CallOption) (Inventory_CreateBookStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Inventory_ServiceDesc.Streams[1], "/Inventory/CreateBookStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &inventoryCreateBookStreamClient{stream}
+	return x, nil
+}
+
+type Inventory_CreateBookStreamClient interface {
+	Send(*BookField) error
+	CloseAndRecv() (*Book, error)
+	grpc.ClientStream
+}
+
+type inventoryCreateBookStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *inventoryCreateBookStreamClient) Send(m *BookField) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *inventoryCreateBookStreamClient) CloseAndRecv() (*Book, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Book)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *inventoryClient) BiGetBooksToFields(ctx context.Context, opts ...grpc.CallOption) (Inventory_BiGetBooksToFieldsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Inventory_ServiceDesc.Streams[2], "/Inventory/BiGetBooksToFields", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &inventoryBiGetBooksToFieldsClient{stream}
+	return x, nil
+}
+
+type Inventory_BiGetBooksToFieldsClient interface {
+	Send(*Book) error
+	Recv() (*BookField, error)
+	grpc.ClientStream
+}
+
+type inventoryBiGetBooksToFieldsClient struct {
+	grpc.ClientStream
+}
+
+func (x *inventoryBiGetBooksToFieldsClient) Send(m *Book) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *inventoryBiGetBooksToFieldsClient) Recv() (*BookField, error) {
+	m := new(BookField)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // InventoryServer is the server API for Inventory service.
 // All implementations must embed UnimplementedInventoryServer
 // for forward compatibility
 type InventoryServer interface {
+	// Simple RPC
 	GetBookList(context.Context, *GetBookListRequest) (*GetBookListResponse, error)
+	// Server-side streaming RPC
+	GetBookFieldsStream(*Book, Inventory_GetBookFieldsStreamServer) error
+	// Client-side streaming rPC
+	CreateBookStream(Inventory_CreateBookStreamServer) error
+	BiGetBooksToFields(Inventory_BiGetBooksToFieldsServer) error
 	mustEmbedUnimplementedInventoryServer()
 }
 
@@ -56,6 +165,15 @@ type UnimplementedInventoryServer struct {
 
 func (UnimplementedInventoryServer) GetBookList(context.Context, *GetBookListRequest) (*GetBookListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBookList not implemented")
+}
+func (UnimplementedInventoryServer) GetBookFieldsStream(*Book, Inventory_GetBookFieldsStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetBookFieldsStream not implemented")
+}
+func (UnimplementedInventoryServer) CreateBookStream(Inventory_CreateBookStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method CreateBookStream not implemented")
+}
+func (UnimplementedInventoryServer) BiGetBooksToFields(Inventory_BiGetBooksToFieldsServer) error {
+	return status.Errorf(codes.Unimplemented, "method BiGetBooksToFields not implemented")
 }
 func (UnimplementedInventoryServer) mustEmbedUnimplementedInventoryServer() {}
 
@@ -88,6 +206,79 @@ func _Inventory_GetBookList_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Inventory_GetBookFieldsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Book)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(InventoryServer).GetBookFieldsStream(m, &inventoryGetBookFieldsStreamServer{stream})
+}
+
+type Inventory_GetBookFieldsStreamServer interface {
+	Send(*BookField) error
+	grpc.ServerStream
+}
+
+type inventoryGetBookFieldsStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *inventoryGetBookFieldsStreamServer) Send(m *BookField) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Inventory_CreateBookStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(InventoryServer).CreateBookStream(&inventoryCreateBookStreamServer{stream})
+}
+
+type Inventory_CreateBookStreamServer interface {
+	SendAndClose(*Book) error
+	Recv() (*BookField, error)
+	grpc.ServerStream
+}
+
+type inventoryCreateBookStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *inventoryCreateBookStreamServer) SendAndClose(m *Book) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *inventoryCreateBookStreamServer) Recv() (*BookField, error) {
+	m := new(BookField)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _Inventory_BiGetBooksToFields_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(InventoryServer).BiGetBooksToFields(&inventoryBiGetBooksToFieldsServer{stream})
+}
+
+type Inventory_BiGetBooksToFieldsServer interface {
+	Send(*BookField) error
+	Recv() (*Book, error)
+	grpc.ServerStream
+}
+
+type inventoryBiGetBooksToFieldsServer struct {
+	grpc.ServerStream
+}
+
+func (x *inventoryBiGetBooksToFieldsServer) Send(m *BookField) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *inventoryBiGetBooksToFieldsServer) Recv() (*Book, error) {
+	m := new(Book)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Inventory_ServiceDesc is the grpc.ServiceDesc for Inventory service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -100,6 +291,23 @@ var Inventory_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Inventory_GetBookList_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetBookFieldsStream",
+			Handler:       _Inventory_GetBookFieldsStream_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "CreateBookStream",
+			Handler:       _Inventory_CreateBookStream_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "BiGetBooksToFields",
+			Handler:       _Inventory_BiGetBooksToFields_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "proto/bookshop.proto",
 }
